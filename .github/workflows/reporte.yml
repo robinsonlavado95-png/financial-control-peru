@@ -6,47 +6,42 @@ on:
       - 'data/**'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-    - name: Entrar al repositorio
-      uses: actions/checkout@v3
-
+    - uses: actions/checkout@v3
     - name: Configurar Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
-    - name: Procesar Datos y Calcular IGV
+    - name: Ejecutar script
       run: |
         python -c "
         import csv, os
-        def calcular_totales(ruta):
-            s, i, t = 0.0, 0.0, 0.0
-            if os.path.exists(ruta):
-                with open(ruta, mode='r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
+        def get_data(file):
+            s, i, t = 0, 0, 0
+            if os.path.exists(file):
+                with open(file, 'r', encoding='utf-8') as f:
+                    for row in csv.DictReader(f):
                         s += float(row.get('Subtotal') or 0)
                         i += float(row.get('IGV') or 0)
                         t += float(row.get('Total') or 0)
-            return round(s, 2), round(i, 2), round(t, 2)
-        vs, vi, vt = calcular_totales('data/ventas.csv')
-        cs, ci, ct = calcular_totales('data/compras.csv')
-        utilidad = round(vs - cs, 2)
-        igv_neto = round(vi - ci, 2)
-        status = f'💵 IGV a pagar a SUNAT: S/. {igv_neto:,.2f}' if igv_neto > 0 else f'📉 Crédito Fiscal: S/. {abs(igv_neto):,.2f}'
+            return s, i, t
+        vs, vi, vt = get_data('data/ventas.csv')
+        cs, ci, ct = get_data('data/compras.csv')
+        util = vs - cs
+        igv_neto = vi - ci
         with open('README.md', 'w', encoding='utf-8') as f:
-            f.write(f'# Control Financiero\n\n## Resumen\n| Concepto | Ventas | Compras | Diferencia |\n|---|---|---|---|\n| Subtotal | {vs:,.2f} | {cs:,.2f} | {utilidad:,.2f} |\n\n### Estado IGV\n{status}')
+            f.write(f'# Reporte Financiero\n\n| Concepto | Ventas | Compras |\n|---|---|---|\n| Subtotal | {vs:,.2f} | {cs:,.2f} |\n\nIGV Neto: {igv_neto:,.2f}')
         "
-
-    - name: Guardar cambios
+    - name: Guardar reporte
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add README.md
-        git commit -m "Actualizar reporte" || echo "No hay cambios que commitear"
+        git commit -m "Actualizar reporte automático" || echo "Sin cambios"
         git push
