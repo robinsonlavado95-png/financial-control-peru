@@ -1,0 +1,78 @@
+name: Generar Reporte Financiero Automático
+
+on:
+  push:
+    paths:
+      - 'data/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Entrar al repositorio
+      uses: actions/checkout@v3
+
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Procesar Datos y Calcular IGV
+      run: |
+        python -c "
+        import csv
+        import os
+
+        def calcular_totales(ruta):
+            subtotal, igv, total = 0.0, 0.0, 0.0
+            if os.path.exists(ruta):
+                with open(ruta, mode='r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        subtotal += float(row.get('Subtotal', 0) or 0)
+                        igv += float(row.get('IGV', 0) or 0)
+                        total += float(row.get('Total', 0) or 0)
+            return round(subtotal, 2), round(igv, 2), round(total, 2)
+
+        v_sub, v_igv, v_tot = calcular_totales('data/ventas.csv')
+        c_sub, c_igv, c_tot = calcular_totales('data/compras.csv')
+
+        utilidad = round(v_sub - c_sub, 2)
+        igv_neto = round(v_igv - c_igv, 2)
+
+        sunat_status = f'💵 IGV a pagar a SUNAT: S/. {igv_neto:,.2f}' if igv_neto > 0 else f'📉 Crédito Fiscal a favor: S/. {abs(igv_neto):,.2f}'
+
+        nuevo_readme = f'''# Financial Control Perú 🇵🇪
+        Sistema piloto automatizado para el control financiero de facturas de compra y venta.
+
+        ## 📊 PANEL CONTROL FINANCIERO (Actualizado Automáticamente)
+        | Métrica | Ventas (Ingresos) | Compras (Gastos) | Balance / Utilidad |
+        | :--- | :--- | :--- | :--- |
+        | **Subtotal (Neto)** | S/. {v_sub:,.2f} | S/. {c_sub:,.2f} | **S/. {utilidad:,.2f}** |
+        | **IGV (18%)** | S/. {v_igv:,.2f} | S/. {c_igv:,.2f} | — |
+        | **Total General** | S/. {v_tot:,.2f} | S/. {c_tot:,.2f} | — |
+
+        ### 🏦 Situación Tributaria (Estimación de IGV)
+        - {sunat_status}
+
+        ---
+        ## 📅 Cronograma Semanal
+        - **Días 1-2:** Estructuración del repositorio y archivos base (¡Completado! ✅).
+        - **Días 3-4:** Carga piloto de las 10 facturas.
+        - **Día 5:** Procesamiento de datos y balance de IGV (18%).
+
+        ## 📁 Estructura del Proyecto
+        - `/data`: Carpeta contenedora de los comprobantes.
+        '''
+
+        with open('README.md', 'w', encoding='utf-8') as f:
+            f.write(nuevo_readme)
+        "
+
+    - name: Guardar y Actualizar Portada
+      run: |
+        git config --local user.email "actions@github.com"
+        git config --local user.name "GitHub Actions Robot"
+        git add README.md
+        git diff --quiet && git diff --staged --quiet || (git commit -m '📊 Robot: Reporte financiero actualizado' && git push)
