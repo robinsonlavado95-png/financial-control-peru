@@ -1,4 +1,4 @@
-name: Generar Reporte Financiero
+name: Generar Reporte Financiero Automático
 
 on:
   push:
@@ -13,17 +13,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout del código
+        uses: actions/checkout@v4
       - name: Configurar Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Procesar y Escribir
+      - name: Procesar Datos y Calcular IGV
         run: |
           python -c "
           import csv, os
-          def get_sum(file):
-              s, i, t = 0, 0, 0
+          def get_data(file):
+              s, i, t = 0.0, 0.0, 0.0
               if os.path.exists(file):
                   with open(file, 'r', encoding='utf-8') as f:
                       for r in csv.DictReader(f):
@@ -31,15 +32,15 @@ jobs:
                           i += float(r.get('IGV') or 0)
                           t += float(r.get('Total') or 0)
               return s, i, t
-          vs, vi, vt = get_sum('data/ventas.csv')
-          cs, ci, ct = get_sum('data/compras.csv')
+          vs, vi, vt = get_data('data/ventas.csv')
+          cs, ci, ct = get_data('data/compras.csv')
           with open('README.md', 'w', encoding='utf-8') as f:
-              f.write(f'# Reporte Financiero\n\n| Concepto | Ventas | Compras |\n|---|---|---|\n| Subtotal | {vs:,.2f} | {cs:,.2f} |\n\nIGV Neto a pagar: {vi-ci:,.2f}')
+              f.write(f'# Reporte Financiero\\n\\n| Concepto | Ventas | Compras |\\n|---|---|---|\\n| Subtotal | {vs:,.2f} | {cs:,.2f} |\\n\\nIGV Neto a pagar: {vi-ci:,.2f}')
           "
-      - name: Push cambios
+      - name: Guardar cambios
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add README.md
-          git commit -m "Update" || echo "Sin cambios"
-          git push origin HEAD:main
+          git commit -m "Actualización automática de reporte" || echo "No hay cambios"
+          git push
